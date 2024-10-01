@@ -15,19 +15,18 @@
 // TODO:Rotation can cause push the piece instead of disallow the action
 // TODO:CHANGE TETRINO AS TETROMINO
 // TODO:Highlight for where to drop
-//---1:56:16
+// BUG: GameOver
+
+//---2:08:16
 #include "colors.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
- 
-
- 
 #include <cstdio>
 
 #include <cstdlib>
 #include <cstring>
-//#include <wayland-client.h>
+// #include <wayland-client.h>
 
 #define WIDTH 10
 #define HEIGHT 22
@@ -35,7 +34,6 @@
 #define GRID_SIZE 30
 
 #define ARRAY_COUNT(x) (sizeof(x) / sizeof((x)[0]))
-
 
 const float FRAMES_PER_DROP[] = {48, 43, 38, 33, 28, 23, 18, 13, 8, 6,
                                  5,  5,  5,  4,  4,  4,  3,  3,  3, 2,
@@ -52,56 +50,33 @@ inline Tetrino tetrino(const uint8_t *data, int32_t side) {
     return {data, side};
 }
 
-const uint8_t TETRINO_1[] = {
-    0, 0, 0, 0, 
-    1, 1, 1, 1, 
-    0, 0, 0, 0, 
-    0, 0, 0, 0
-};
-const uint8_t TETRINO_2[] = {
-    2, 2, 
-    2, 2
-};
-const uint8_t TETRINO_3[] = {
-    0, 0, 0, 
-    3, 3, 3, 
-    0, 3, 0
-};
+const uint8_t TETRINO_1[] = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+const uint8_t TETRINO_2[] = {2, 2, 2, 2};
+const uint8_t TETRINO_3[] = {0, 0, 0, 3, 3, 3, 0, 3, 0};
 const uint8_t TETRINO_4[] = {
-    0, 0, 0,
-    4, 0, 0,
-    4, 4, 4,
+    0, 0, 0, 4, 0, 0, 4, 4, 4,
 };
 const uint8_t TETRINO_5[] = {
-    0, 0, 0,
-    0, 0, 5,
-    5, 5, 5,
+    0, 0, 0, 0, 0, 5, 5, 5, 5,
 };
 const uint8_t TETRINO_6[] = {
-    0, 0, 0,
-    0, 6, 6,
-    6, 6, 0,
+    0, 0, 0, 0, 6, 6, 6, 6, 0,
 };
 const uint8_t TETRINO_7[] = {
-    0, 0, 0,
-    7, 7, 0,
-    0, 7, 7,
+    0, 0, 0, 7, 7, 0, 0, 7, 7,
 };
 const Tetrino TETRINOS[] = {
-    tetrino(TETRINO_1, 4),
-    tetrino(TETRINO_2, 2),
-    tetrino(TETRINO_3, 3),
-    tetrino(TETRINO_4, 3),
-    tetrino(TETRINO_5, 3),
-    tetrino(TETRINO_6, 3),
+    tetrino(TETRINO_1, 4), tetrino(TETRINO_2, 2), tetrino(TETRINO_3, 3),
+    tetrino(TETRINO_4, 3), tetrino(TETRINO_5, 3), tetrino(TETRINO_6, 3),
     tetrino(TETRINO_7, 3),
 };
 enum Game_Phase {
+    GAME_PHASE_START,
     GAME_PHASE_PLAY,
     GAME_PHASE_LINE,
     GAME_PHASE_GAMEOVER,
 };
-enum Text_Align{
+enum Text_Align {
     TEXT_ALIGN_LEFT,
     TEXT_ALIGN_MID,
     TEXT_ALIGN_RIGHT,
@@ -172,8 +147,7 @@ inline uint8_t tetrino_get(const Tetrino *tetrino, int32_t row, int32_t col,
     }
     return 0;
 }
-inline uint8_t 
-check_row_filled(const uint8_t *values, int32_t width,
+inline uint8_t check_row_filled(const uint8_t *values, int32_t width,
                                 int32_t row) {
     for (int32_t col = 0; col < width; ++col) {
         if (!matrix_get(values, width, row, col)) {
@@ -182,18 +156,14 @@ check_row_filled(const uint8_t *values, int32_t width,
     }
     return 1;
 }
-inline uint8_t
-check_row_empty(const uint8_t *values, int32_t width,
-                                int32_t row) 
-{
-    for (int32_t col = 0; col < width; ++col){
-        if (matrix_get(values, width, row, col))
-        {
+inline uint8_t check_row_empty(const uint8_t *values, int32_t width,
+                               int32_t row) {
+    for (int32_t col = 0; col < width; ++col) {
+        if (matrix_get(values, width, row, col)) {
             return 0;
-        }   
+        }
     }
     return 1;
-
 }
 
 int32_t find_lines(const uint8_t *values, int32_t width, int32_t height,
@@ -275,17 +245,14 @@ void merge_piece(Game_State *game) {
         }
     }
 }
-inline int32_t
-random_int(int32_t min, int32_t max)
-{
+inline int32_t random_int(int32_t min, int32_t max) {
     int32_t range = max - min;
     return min + rand() % range;
-
 }
 
 void spawn_piece(Game_State *game) {
     game->piece = {};
-    game->piece.tetrino_index = random_int(0,ARRAY_COUNT(TETRINOS));
+    game->piece.tetrino_index = random_int(0, ARRAY_COUNT(TETRINOS));
     game->piece.offset_col = WIDTH / 2;
 }
 
@@ -331,6 +298,30 @@ inline int32_t get_lines_for_next_level(int32_t start_level, int32_t level) {
     int diff = level - start_level;
     return first_level_up_limit + diff * 10;
 }
+void update_game_start(Game_State *game, const Input_State *input){
+    if (input->dup){
+
+        ++game->start_level;
+    }
+    else if (input->ddown && game->start_level > 0){
+
+        --game->start_level;
+    }
+
+    else if (input->da){
+
+        
+        game->phase = GAME_PHASE_PLAY;
+    }
+}
+void update_game_gameover(Game_State *game, const Input_State *input){
+    
+    if (input->da){
+        
+        game->phase = GAME_PHASE_START;
+
+    }
+}
 void update_game_line(Game_State *game) {
     if (game->time >= game->highlight_end_time) {
         clear_lines(game->board, WIDTH, HEIGHT, game->lines);
@@ -348,7 +339,7 @@ void update_game_line(Game_State *game) {
     }
 }
 void update_game_play(Game_State *game, const Input_State *input) {
-   
+
     Piece_State piece = game->piece;
     if (input->dleft > 0) {
         --piece.offset_col;
@@ -375,32 +366,33 @@ void update_game_play(Game_State *game, const Input_State *input) {
 
     game->pending_line_count =
         find_lines(game->board, WIDTH, HEIGHT, game->lines);
-    if (game->pending_line_count > 0) 
-    {
+    if (game->pending_line_count > 0) {
         game->phase = GAME_PHASE_LINE;
         game->highlight_end_time = game->time + 0.5f;
     }
 
     int32_t game_over_row = max(0, HEIGHT - VISIBLE_HEIGHT - 1);
-    if (!check_row_empty(game->board, WIDTH, game_over_row))
-    {
+    if (!check_row_empty(game->board, WIDTH, game_over_row)) {
         game->phase = GAME_PHASE_GAMEOVER;
     }
 }
 void update_game(Game_State *game, const Input_State *input) {
 
     switch (game->phase) {
+    case GAME_PHASE_START:
+        update_game_start(game, input);
+        break;
     case GAME_PHASE_PLAY:
-        return update_game_play(game, input);
+        update_game_play(game, input);
         break;
     case GAME_PHASE_LINE:
         update_game_line(game);
         break;
     case GAME_PHASE_GAMEOVER:
+        update_game_gameover(game, input);
         printf("Game Over");
         break;
     }
-
 }
 void fill_rect(SDL_Renderer *renderer, int32_t x, int32_t y, int32_t width,
                int32_t height, Color color) {
@@ -412,11 +404,9 @@ void fill_rect(SDL_Renderer *renderer, int32_t x, int32_t y, int32_t width,
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
     SDL_RenderFillRect(renderer, &rect);
 }
-void draw_string(SDL_Renderer *renderer, TTF_Font *font,
-                 const char *text,
-                 int x, int y, Text_Align alignment, Color color)
-{
-    SDL_Color sdl_color = SDL_Color { color.r , color.g, color.b, color.a};
+void draw_string(SDL_Renderer *renderer, TTF_Font *font, const char *text,
+                 int x, int y, Text_Align alignment, Color color) {
+    SDL_Color sdl_color = SDL_Color{color.r, color.g, color.b, color.a};
     SDL_Surface *surface = TTF_RenderText_Solid(font, text, sdl_color);
     SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
 
@@ -425,23 +415,22 @@ void draw_string(SDL_Renderer *renderer, TTF_Font *font,
     rect.w = surface->w;
     rect.h = surface->h;
 
-    switch (alignment)
-    {
-        case TEXT_ALIGN_LEFT:
-            rect.x = x;
-            break;
-        case  TEXT_ALIGN_MID:
-            rect.x = x - surface->w / 2;
-            break;
-        case TEXT_ALIGN_RIGHT:
-            rect.x = x - surface->w;
-            break;
+    switch (alignment) {
+
+    case TEXT_ALIGN_LEFT:
+        rect.x = x;
+        break;
+    case TEXT_ALIGN_MID:
+        rect.x = x - surface->w / 2;
+        break;
+    case TEXT_ALIGN_RIGHT:
+        rect.x = x - surface->w;
+        break;
     }
-    
+
     SDL_RenderCopy(renderer, texture, 0, &rect);
     SDL_FreeSurface(surface);
     SDL_DestroyTexture(texture);
-
 }
 void draw_cell(SDL_Renderer *renderer, int32_t row, int32_t col, uint8_t value,
                int32_t offset_x, int32_t offset_y) {
@@ -489,12 +478,11 @@ void draw_board(SDL_Renderer *renderer, const uint8_t *board, uint32_t width,
     }
 }
 
-void render_game(const Game_State *game, 
-                 SDL_Renderer *renderer,
+void render_game(const Game_State *game, SDL_Renderer *renderer,
                  TTF_Font *font) {
     Color highlight_color = color(0xFF, 0xFF, 0xFF, 0xFF);
 
-    //int32_t margin_y = 60;
+    // int32_t margin_y = 60;
 
     draw_board(renderer, game->board, WIDTH, HEIGHT, 0, 0);
     draw_piece(renderer, &game->piece, 0, 0);
@@ -508,13 +496,12 @@ void render_game(const Game_State *game,
                           highlight_color);
             }
         }
-    }
-    else if(game->phase == GAME_PHASE_GAMEOVER){
+    } else if (game->phase == GAME_PHASE_GAMEOVER) {
         printf("gameOver");
-        //int32_t x = WIDTH * GRID_SIZE / 2;
-        //int32_t y = (HEIGHT * GRID_SIZE + margin_y) / 2;
-        //draw_string(renderer, font, "GAME OVER",
-        //            x, y, TEXT_ALIGN_MID, highlight_color);
+        int32_t x = WIDTH * GRID_SIZE / 2;
+        int32_t y = (HEIGHT * GRID_SIZE) / 2;//+ margin_y) / 2;
+        draw_string(renderer, font, "GAME OVER",
+                     x, y, TEXT_ALIGN_MID, highlight_color);
     }
     draw_string(renderer, font, "TETRIS", WIDTH * GRID_SIZE, 0,
                 TEXT_ALIGN_RIGHT, highlight_color);
@@ -524,7 +511,7 @@ int main() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         return 1;
     }
-    if (TTF_Init() < 0){
+    if (TTF_Init() < 0) {
         return 1;
     }
     SDL_Window *window = SDL_CreateWindow(
@@ -534,17 +521,17 @@ int main() {
         window, -1,
         0); // SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
-    
-    //const char *font_name = NULL;
-    //const char *font_name = "/home/neos/.local/share/fonts/fonts/ttf/JetBrainsMono-Regular.ttf";
+    // const char *font_name = NULL;
+    // const char *font_name =
+    // "/home/neos/.local/share/fonts/fonts/ttf/JetBrainsMono-Regular.ttf";
     const char *font_name = "novem___.ttf";
 
-    TTF_Font *font = TTF_OpenFont(font_name, 24); 
+    TTF_Font *font = TTF_OpenFont(font_name, 24);
 
-    if (!font){
+    if (!font) {
         printf("TTF_OPENFONT: %s \n", TTF_GetError());
     }
-    
+
     bool quit = false;
     Game_State game = {};
     Input_State input = {};
