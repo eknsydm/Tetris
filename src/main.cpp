@@ -14,8 +14,6 @@
 // #include <cstdio>
 // TODO:Rotation can cause push the piece instead of disallow the action
 // TODO:CHANGE TETRINO AS TETROMINO
-// TODO:Highlight for where to drop
-// BUG: GameOver
 
 //---2:08:16
 #include "colors.h"
@@ -377,7 +375,7 @@ void update_game_play(Game_State *game, const Input_State *input) {
         game->highlight_end_time = game->time + 0.5f;
     }
 
-    int32_t game_over_row = 0; //TODO:max(0, HEIGHT - VISIBLE_HEIGHT - 1);
+    int32_t game_over_row = max(0, HEIGHT - VISIBLE_HEIGHT - 1);
     if (!check_row_empty(game->board, WIDTH, game_over_row)) {
         game->phase = GAME_PHASE_GAMEOVER;
     }
