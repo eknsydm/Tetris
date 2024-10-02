@@ -250,19 +250,21 @@ inline int32_t random_int(int32_t min, int32_t max) {
     return min + rand() % range;
 }
 
-void spawn_piece(Game_State *game) {
-    game->piece = {};
-    game->piece.tetrino_index = random_int(0, ARRAY_COUNT(TETRINOS));
-    game->piece.offset_col = WIDTH / 2;
-}
-
-inline float get_time_to_next_drop(int32_t level) {
+inline float get_time_to_next_drop(int32_t level){
     if (level > 29) {
         level = 29;
     }
     return FRAMES_PER_DROP[level] * TARGET_SECONDS_PER_FRAME;
 }
-bool soft_drop(Game_State *game) {
+
+void spawn_piece(Game_State *game) {
+    game->piece = {};
+    game->piece.tetrino_index = random_int(0, ARRAY_COUNT(TETRINOS));
+    game->piece.offset_col = WIDTH / 2;
+    game->next_drop_time = game->time + get_time_to_next_drop(game->level);
+}
+
+inline bool soft_drop(Game_State *game) {
     ++game->piece.offset_row;
     if (!check_piece_valid(&game->piece, game->board, WIDTH, HEIGHT)) {
         --game->piece.offset_row;
@@ -291,32 +293,37 @@ inline int32_t min(int x, int y) { return x < y ? x : y; }
 inline int32_t max(int x, int y) { return x > y ? x : y; }
 inline int32_t get_lines_for_next_level(int32_t start_level, int32_t level) {
     int32_t first_level_up_limit =
-        min((start_level * 10 + 10), max(100, (start_level * 10 - 500)));
+        min((start_level * 10 + 10), max(100, (start_level * 10 - 50)));
     if (level == start_level) {
         return first_level_up_limit;
     }
     int diff = level - start_level;
     return first_level_up_limit + diff * 10;
 }
+
 void update_game_start(Game_State *game, const Input_State *input){
-    if (input->dup){
+    if (input->dup > 0){
 
         ++game->start_level;
     }
-    else if (input->ddown && game->start_level > 0){
+    else if (input->ddown > 0 && game->start_level > 0){
 
         --game->start_level;
     }
 
-    else if (input->da){
+    else if (input->da > 0){
 
-        
+        memset(game->board, 0, WIDTH * HEIGHT);
+        game->level = game->start_level;
+        game->line_count = 0;
+        game->points = 0;
+        spawn_piece(game);
         game->phase = GAME_PHASE_PLAY;
     }
 }
 void update_game_gameover(Game_State *game, const Input_State *input){
     
-    if (input->da){
+    if (input->da > 0){
         
         game->phase = GAME_PHASE_START;
 
@@ -357,8 +364,7 @@ void update_game_play(Game_State *game, const Input_State *input) {
         soft_drop(game);
     }
     if (input->da > 0) {
-        while (soft_drop(game))
-            ;
+        while (soft_drop(game));
     }
     while (game->time >= game->next_drop_time) {
         soft_drop(game);
@@ -371,7 +377,7 @@ void update_game_play(Game_State *game, const Input_State *input) {
         game->highlight_end_time = game->time + 0.5f;
     }
 
-    int32_t game_over_row = max(0, HEIGHT - VISIBLE_HEIGHT - 1);
+    int32_t game_over_row = 0; //TODO:max(0, HEIGHT - VISIBLE_HEIGHT - 1);
     if (!check_row_empty(game->board, WIDTH, game_over_row)) {
         game->phase = GAME_PHASE_GAMEOVER;
     }
@@ -404,6 +410,17 @@ void fill_rect(SDL_Renderer *renderer, int32_t x, int32_t y, int32_t width,
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
     SDL_RenderFillRect(renderer, &rect);
 }
+void draw_rect(SDL_Renderer *renderer,
+               int32_t x, int32_t y, int32_t width, int32_t height, Color color){
+    SDL_Rect rect = {};
+    rect.x = x;
+    rect.y = y;
+    rect.w = width;
+    rect.h = height;
+
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    SDL_RenderDrawRect(renderer, &rect);
+}
 void draw_string(SDL_Renderer *renderer, TTF_Font *font, const char *text,
                  int x, int y, Text_Align alignment, Color color) {
     SDL_Color sdl_color = SDL_Color{color.r, color.g, color.b, color.a};
@@ -433,7 +450,7 @@ void draw_string(SDL_Renderer *renderer, TTF_Font *font, const char *text,
     SDL_DestroyTexture(texture);
 }
 void draw_cell(SDL_Renderer *renderer, int32_t row, int32_t col, uint8_t value,
-               int32_t offset_x, int32_t offset_y) {
+               int32_t offset_x, int32_t offset_y, bool outline = false) {
 
     int32_t edge = GRID_SIZE / 8;
 
@@ -443,6 +460,13 @@ void draw_cell(SDL_Renderer *renderer, int32_t row, int32_t col, uint8_t value,
 
     int32_t x = col * GRID_SIZE + offset_x;
     int32_t y = row * GRID_SIZE + offset_y;
+
+    if (outline){
+        draw_rect(renderer, x, y, GRID_SIZE, GRID_SIZE, base_color);
+        return;
+    }
+
+
     fill_rect(renderer, x, y, GRID_SIZE, GRID_SIZE, dark_color);
     fill_rect(renderer, x + edge, y, GRID_SIZE - edge, GRID_SIZE - edge,
               light_color);
@@ -451,14 +475,22 @@ void draw_cell(SDL_Renderer *renderer, int32_t row, int32_t col, uint8_t value,
 }
 
 void draw_piece(SDL_Renderer *renderer, const Piece_State *piece,
-                int32_t offset_x, int32_t offset_y) {
+                int32_t offset_x, int32_t offset_y, bool outline = false) {
+
     const Tetrino *tetrino = TETRINOS + piece->tetrino_index;
+    
     for (int32_t row = 0; row < tetrino->side; ++row) {
         for (int32_t col = 0; col < tetrino->side; ++col) {
+            
             uint8_t value = tetrino_get(tetrino, row, col, piece->rotation);
+            
             if (value) {
-                draw_cell(renderer, row + piece->offset_row,
-                          col + piece->offset_col, value, offset_x, offset_y);
+                draw_cell(renderer, 
+                          row + piece->offset_row,
+                          col + piece->offset_col, 
+                          value, 
+                          offset_x, offset_y,
+                          outline);
             }
         }
     }
@@ -466,14 +498,18 @@ void draw_piece(SDL_Renderer *renderer, const Piece_State *piece,
 
 void draw_board(SDL_Renderer *renderer, const uint8_t *board, uint32_t width,
                 uint32_t height, int32_t offset_x, int32_t offset_y) {
+
+    fill_rect(renderer, offset_x, offset_y, width * GRID_SIZE, height * GRID_SIZE, BASE_COLORS[0]);
+
     for (uint32_t row = 0; row < height; ++row) {
         for (uint32_t col = 0; col < width; ++col) {
+           
             uint8_t value = matrix_get(board, width, row, col);
-            draw_cell(renderer, row, col, value, offset_x, offset_y);
-            // If (value)
-            //{
-            //     draw_cell(renderer, row, col, value, offset_x, offset_y);
-            //}
+            //draw_cell(renderer, row, col, value, offset_x, offset_y);
+            if (value)
+            {
+                draw_cell(renderer, row, col, value, offset_x, offset_y);
+            }
         }
     }
 }
@@ -482,29 +518,72 @@ void render_game(const Game_State *game, SDL_Renderer *renderer,
                  TTF_Font *font) {
     Color highlight_color = color(0xFF, 0xFF, 0xFF, 0xFF);
 
-    // int32_t margin_y = 60;
+    int32_t margin_y = 60;
 
-    draw_board(renderer, game->board, WIDTH, HEIGHT, 0, 0);
-    draw_piece(renderer, &game->piece, 0, 0);
+    draw_board(renderer, game->board, WIDTH, HEIGHT, 0, margin_y);
+    //draw_piece(renderer, &game->piece, 0, 0);
+
+    char buffer[4096];
+    
+    if (game->phase == GAME_PHASE_PLAY)
+    {
+        draw_piece(renderer, &game->piece, 0, margin_y);
+
+        Piece_State piece = game->piece;
+        while (check_piece_valid(&piece, game->board, WIDTH, HEIGHT))
+        {
+            piece.offset_row++;
+        }
+        --piece.offset_row;
+        
+        draw_piece(renderer, &piece, 0, margin_y, true);
+        
+    }
 
     if (game->phase == GAME_PHASE_LINE) {
         for (int row = 0; row < HEIGHT; ++row) {
             if (game->lines[row]) {
+                
                 int x = 0;
-                int y = row * GRID_SIZE;
+                int y = row * GRID_SIZE + margin_y;
                 fill_rect(renderer, x, y, WIDTH * GRID_SIZE, GRID_SIZE,
                           highlight_color);
             }
         }
-    } else if (game->phase == GAME_PHASE_GAMEOVER) {
+    } 
+    else if (game->phase == GAME_PHASE_GAMEOVER) {
         printf("gameOver");
         int32_t x = WIDTH * GRID_SIZE / 2;
-        int32_t y = (HEIGHT * GRID_SIZE) / 2;//+ margin_y) / 2;
+        int32_t y = (HEIGHT * GRID_SIZE + margin_y) / 2;//+ margin_y) / 2;
         draw_string(renderer, font, "GAME OVER",
                      x, y, TEXT_ALIGN_MID, highlight_color);
     }
-    draw_string(renderer, font, "TETRIS", WIDTH * GRID_SIZE, 0,
-                TEXT_ALIGN_RIGHT, highlight_color);
+    else if (game->phase == GAME_PHASE_START) {
+        int32_t x = WIDTH * GRID_SIZE / 2;
+        int32_t y = (HEIGHT * GRID_SIZE + margin_y) / 2;
+        draw_string(renderer, font, "PRESS START",
+                    x, y, TEXT_ALIGN_MID, highlight_color);
+        snprintf(buffer, sizeof(buffer), "STARTING LEVEL: %d", game->start_level);
+        draw_string(renderer, font, buffer,
+                    x, y + 30, TEXT_ALIGN_MID, highlight_color);
+    }
+    
+    fill_rect(renderer,
+              0, margin_y,
+              WIDTH * GRID_SIZE, (HEIGHT - VISIBLE_HEIGHT) * GRID_SIZE,
+              color(0x00, 0x00, 0x00, 0x00));
+    
+
+    snprintf(buffer, sizeof(buffer), "LEVEL: %d", game->level);
+    draw_string(renderer, font, buffer, 5, 5, TEXT_ALIGN_LEFT, highlight_color);
+
+    snprintf(buffer, sizeof(buffer), "LINES: %d", game->line_count);
+    draw_string(renderer, font, buffer, 5, 35, TEXT_ALIGN_LEFT, highlight_color);
+    
+    snprintf(buffer, sizeof(buffer), "POINTS: %d", game->points);
+    draw_string(renderer, font, buffer, 5, 65, TEXT_ALIGN_LEFT, highlight_color);
+    //draw_string(renderer, font, "TETRIS", WIDTH * GRID_SIZE, 0,
+    //        TEXT_ALIGN_RIGHT, highlight_color);
 }
 int main() {
     printf("TETRIS");
@@ -515,8 +594,8 @@ int main() {
         return 1;
     }
     SDL_Window *window = SDL_CreateWindow(
-        "Tetris", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 400, 720,
-        0); // SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+        "Tetris", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 300, 720,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
     SDL_Renderer *renderer = SDL_CreateRenderer(
         window, -1,
         0); // SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
@@ -538,7 +617,7 @@ int main() {
 
     spawn_piece(&game);
 
-    game.piece.tetrino_index = 5;
+    game.piece.tetrino_index = 2;
 
     while (!quit) {
         game.time = SDL_GetTicks() / 1000.0f;
@@ -568,7 +647,7 @@ int main() {
         input.dup = input.up - prev_input.up;
         input.ddown = input.down - prev_input.down;
         input.da = input.a - prev_input.a;
-        SDL_SetRenderDrawColor(renderer, 60, 60, 60, 255);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
         SDL_RenderClear(renderer);
 
         update_game(&game, &input);
@@ -580,5 +659,6 @@ int main() {
     TTF_CloseFont(font);
     SDL_DestroyRenderer(renderer);
     SDL_Quit();
+
     return 0;
 }
