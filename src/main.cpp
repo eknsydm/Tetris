@@ -1,6 +1,5 @@
 #include <cassert>
 #include <cstdint>
-// TODO:Rotation can cause push the piece instead of disallow the action
 
 #include "colors.h"
 #include <SDL2/SDL.h>
@@ -286,7 +285,7 @@ inline int32_t get_lines_for_next_level(int32_t start_level, int32_t level) {
         return first_level_up_limit;
     }
     int diff = level - start_level;
-    return first_level_up_limit + diff * 40; // 10;
+    return first_level_up_limit + diff * 40; 
 }
 
 void update_game_start(Game_State *game, const Input_State *input) {
@@ -489,7 +488,6 @@ void draw_board(SDL_Renderer *renderer, const uint8_t *board, uint32_t width,
         for (uint32_t col = 0; col < width; ++col) {
 
             uint8_t value = matrix_get(board, width, row, col);
-            // draw_cell(renderer, row, col, value, offset_x, offset_y);
             if (value) {
                 draw_cell(renderer, row, col, value, offset_x, offset_y);
             }
@@ -504,7 +502,6 @@ void render_game(const Game_State *game, SDL_Renderer *renderer,
     int32_t margin_y = 60;
 
     draw_board(renderer, game->board, WIDTH, HEIGHT, 0, margin_y);
-    // draw_piece(renderer, &game->piece, 0, 0);
 
     char buffer[4096];
 
@@ -532,7 +529,7 @@ void render_game(const Game_State *game, SDL_Renderer *renderer,
         }
     } else if (game->phase == GAME_PHASE_GAMEOVER) {
         int32_t x = WIDTH * GRID_SIZE / 2;
-        int32_t y = (HEIGHT * GRID_SIZE + margin_y) / 2; //+ margin_y) / 2;
+        int32_t y = (HEIGHT * GRID_SIZE + margin_y) / 2;
         draw_string(renderer, font, "GAME OVER", x, y, TEXT_ALIGN_MID,
                     highlight_color);
     } else if (game->phase == GAME_PHASE_START) {
@@ -575,7 +572,6 @@ int main() {
         window, -1,
         0); // SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
-    // "/home/neos/.local/share/fonts/fonts/ttf/JetBrainsMono-Regular.ttf";
     const char *font_name = "novem___.ttf";
 
     TTF_Font *font = TTF_OpenFont(font_name, 24);
