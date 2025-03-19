@@ -2,7 +2,7 @@
 
 This project is a clone of the classic **NES Tetris**, developed using **C++** and **SDL2**. It is designed to demonstrate game development skills and proficiency in **C++** and **SDL2**, making it a valuable addition to my portfolio.
 
-![Tetris Gameplay](recording_2025-03-19_14.09.57.gif)
+![Tetris Gameplay](recording_2025-03-19_14.35.00(1).gif)
 
 
 ## Features
