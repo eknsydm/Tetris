@@ -157,11 +157,11 @@ int32_t find_lines(const uint8_t *values, int32_t width, int32_t height,
                    uint8_t *lines_out) {
     int32_t count = 0;
     for (int32_t row = 0; row < height; ++row) {
-        for (int32_t col = 0; col < width; ++col) {
-            uint8_t filled = check_row_filled(values, width, row);
-            lines_out[row] = filled;
-            count += filled;
-        }
+        // for (int32_t col = 0; col < width; ++col) {
+        uint8_t filled = check_row_filled(values, width, row);
+        lines_out[row] = filled;
+        count += filled;
+        //}
     }
     return count;
 }
@@ -264,6 +264,7 @@ inline bool soft_drop(Game_State *game) {
     return true;
 }
 inline int32_t compute_point(int32_t level, int32_t line_count) {
+    printf("%d\n", line_count);
     switch (line_count) {
     case 1:
         return 40 * (level + 1);
@@ -285,7 +286,7 @@ inline int32_t get_lines_for_next_level(int32_t start_level, int32_t level) {
         return first_level_up_limit;
     }
     int diff = level - start_level;
-    return first_level_up_limit + diff * 40; 
+    return first_level_up_limit + diff * 40;
 }
 
 void update_game_start(Game_State *game, const Input_State *input) {
@@ -317,6 +318,7 @@ void update_game_gameover(Game_State *game, const Input_State *input) {
 void update_game_line(Game_State *game) {
     if (game->time >= game->highlight_end_time) {
         clear_lines(game->board, WIDTH, HEIGHT, game->lines);
+        printf("pendingline %d\n", game->pending_line_count);
         game->line_count += game->pending_line_count;
         game->points += compute_point(game->level, game->pending_line_count);
 
